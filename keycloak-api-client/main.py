@@ -7,16 +7,16 @@ import requests
 app = FastAPI()
 
 # Keycloak Configuration
-KEYCLOAK_SERVER_URL = "http://localhost:8081"      #keycloak webpage
+KEYCLOAK_SERVER_URL = "http://localhost:8080"      #keycloak webpage
 KEYCLOAK_REALM = "demo"                           # realm in which fastapi_admin and fastapi_app clients are created 
 
 # Dedicated Admin Client for FastAPI application's internal Keycloak management
 ADMIN_CLIENT_ID = "fastapi-admin-client" # Choose a unique ID for your admin client
-ADMIN_CLIENT_SECRET = "bAQvmLB0O0NXEqYHkRpiIqlhQDYDk1sC" # GENERATE A STRONG SECRET
+ADMIN_CLIENT_SECRET = "88SzGccWOBAAxR2Pzad5K3DQpUZJP0if" # GENERATE A STRONG SECRET
 
 # Client for your application (e.g., to register users via API)
-APP_CLIENT_ID = "fastapi-app"
-APP_CLIENT_SECRET = "EasplTmXiMOK4RNRYALco5HEhRgC5meu" # in credentials tab of fastapi-app client
+APP_CLIENT_ID = "fastapi-app-client"
+APP_CLIENT_SECRET = "YpmSb1YJqavHiHDQL8dBZPdij9JSvp2z" # in credentials tab of fastapi-app client
 
 # OAuth2PasswordBearer for dependency injection
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -167,10 +167,10 @@ async def register_user_endpoint(user: UserRegister):
             "temporary": False
         }]
     }
-
     try:
         response = requests.post(users_url, headers=headers, json=user_data)
         response.raise_for_status()
+        print(f"Username {user.username} registered successfully")
         return {"message": "User registered successfully"}
     except requests.exceptions.RequestException as e:
         print(f"Error registering user: {e}")
@@ -191,6 +191,7 @@ async def login_for_access_token(user: UserLogin):
     try:
         response = requests.post(token_url, data=payload)
         response.raise_for_status()
+        print(f"User {user.username} logged in successfully")
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error during user login: {e}")
