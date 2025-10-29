@@ -1,0 +1,8 @@
+1.Install Postgresql.
+2.Create DB + user:
+    psql db: keycloak
+    user: keycloak
+    user_password : keycloak@123
+3.Configure Keycloak.
+4.Migrate existing H2 data.
+5.Verify everything works.

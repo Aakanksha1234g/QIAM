@@ -91,7 +91,7 @@ if [ -z "$JAVA" ]; then
     if [ -n "$JAVA_HOME" ]; then
         JAVA="$JAVA_HOME/bin/java"
     else
-        JAVA="java"
+        JAVA="$JAVA_HOME/bin/java"
     fi
 fi
 

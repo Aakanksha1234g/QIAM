@@ -45,4 +45,18 @@ To register users:-
         e. query-users :- search user info in realm.
 
 
+If keycloak serve is started with this command: ./bin/kc.sh start-dev
+then Keycloak uses H2 embedded database(runs inside keycloak) stored in data/h2/keycloakdb.*
+On this location:
+    (venv) ak@ak-OptiPlex-Micro-Plus-7010:~/Projects/QIAM/keyclk/keycloak-api-client/keycloak-26.4.1/data/h2$ ls
+    keycloakdb.mv.db      --Main database file(data)
+    keycloakdb.trace.db     --Optional trace log
 
+Reason for not using H2 embedded database:
+1. For development only
+2. Can't work under:
+    1.High traffic
+    2.File corruption risk
+    3.Concurrent access
+
+Note:- Postgresql - for production
