@@ -1,0 +1,48 @@
+Access Token:- After login users will receive it.
+Refresh Token:- If current access token expires, refresh token is used to get a new access token without user credentials.
+                Refresh token should be stored securely on client side.
+                If it is used to logout then the associated access token will become inactive then user will hav eto login again.
+realm-management :- This default keycloak's client is used to assign permissions to all the other clients.
+
+
+ADMIN_CLIENT Usage:
+    1. To create/update app clients.
+    2. Register(create) users.
+    3. Has realm-management roles(like manage-users, manage-clients, manage-realm)
+    4. Has grant type "client_credentials" (used for machine to machine authentication where client needs to authenticate itself to an authorization server(Keycloak)
+        to access protected resources Keycloak's Admin API)
+
+APP_CLIENT Usage:
+    1. To login/logout and introspect user.
+    2. Has DirectAccessGrantsEnabled(to access user credentials for tokens),
+    3. Has grant type Direct Access Grants
+
+Login endpoint response:-
+    1. access_token ="";        //to access resources
+    2. refresh_token = "";
+    3. expires_in = access_token_ lifespan in seconds;
+    4. refresh_expires_in = refresh_token lifespan in seconds;
+    5. token_type = "Bearer";  //always bearer. It is sent to the keycloak server like this: "Authorization:Bearer<access token>"
+    6. not-before-policy = 0;   //time before which the token must not be accepted
+                            //0 means token can be used immediately
+                //It is used for situation where a token might be issued but not become valid until a certain time.
+    7. session_state = user's session unique value. Used to track active sessions/logout notifications.
+                    //It is used to identify different sessions for the same user.
+
+    8. scope = list of permissions granted to the access token separated by space.
+                E.g. scopes : "Profile email"
+                    So, access token can be used to retrieve user's profile info and email id from Kecyloak's UserInfo endpoint(if that endpoint is exposed and configured).
+                Keycloak by default grants profile,email,openid etc scopes at the time client is created.
+                The openid, offline_access are internal scopes of keycloak so they are not seen in endpoint's response  
+
+
+To register users:-
+    1.ADMIN_CLIENT should have these permisisons/roles from realm-management client:-
+        a. manage-clients :- create/update/delete clients.
+        b. view-clients :- view clients. 
+        c. manage-users :- create/delete/update user and user sessions.
+        d. manage-realm :- create/delete realms
+        e. query-users :- search user info in realm.
+
+
+

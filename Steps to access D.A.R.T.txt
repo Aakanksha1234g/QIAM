@@ -1,0 +1,3 @@
+Login in /login endpoint with credentials.
+Check introspect endpoint to verify access token and user.
+Logout with refresh token.
