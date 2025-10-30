@@ -1,10 +1,28 @@
-
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import token
+from fastapi import FastAPI, HTTPException, status, Form
+from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2AuthorizationCodeBearer
 from pydantic import BaseModel
+from keycloak import KeycloakOpenID
+from urllib.parse import quote
 import requests
+from urllib.parse import urlencode
+import secrets
+import time
+import base64
+import json
 
 app = FastAPI()
+
+#Fix browser block(CORS) from redirecting
+app.add_middleware( 
+    CORSMiddleware,
+    allow_origins=["*"],       #at production this will change with the applications URL
+    allow_credentials = True,
+    allow_methods=["*"],
+    allow_headers = ["*"],
+    )
 
 # Keycloak Configuration
 KEYCLOAK_SERVER_URL = "http://localhost:8080"      #keycloak webpage
@@ -17,6 +35,10 @@ ADMIN_CLIENT_SECRET = "88SzGccWOBAAxR2Pzad5K3DQpUZJP0if" # GENERATE A STRONG SEC
 # Client for your application (e.g., to register users via API)
 APP_CLIENT_ID = "fastapi-app-client"
 APP_CLIENT_SECRET = "YpmSb1YJqavHiHDQL8dBZPdij9JSvp2z" # in credentials tab of fastapi-app client
+
+#Application URL to redirect after login
+APP_REDIRECT_URL = "http://localhost:8000/"
+APP_HOME_URL = "http://localhost:8000"
 
 # OAuth2PasswordBearer for dependency injection
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -31,6 +53,7 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+    email : str
 
 class TokenRefresh(BaseModel):
     refreshToken: str
@@ -40,6 +63,7 @@ class TokenIntrospect(BaseModel):
 
 def get_admin_access_token():
     print("Inside get_admin_access_token function...")
+    #token_ril is used to get access token for admin client
     token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
     payload = {
         "client_id": ADMIN_CLIENT_ID,
@@ -89,7 +113,17 @@ async def configure_app_client():
             "secret": APP_CLIENT_SECRET,       #client secret
             "directAccessGrantsEnabled": True,   #allows to send username and password to keycloak's token endpoint, without redirecting to login page
             "serviceAccountsEnabled": True,      #enable service account to manage users, create users 
-            "redirectUris": ["*"], # Allow all redirect URIs for flexibility in this example
+            "redirectUris": [
+                APP_HOME_URL, APP_REDIRECT_URL,
+                "http://127.0.0.1:8000/*", "http://127.0.0.1:8000",
+                "http://localhost:8000/callback"
+            ], 
+            "weborigins":["http://localhost:8000", "http://127.0.0.1:8000"],
+            "attributes":{ 
+                "oauth.device.authorization.grant.enabled":"false",
+                "oidc.ciba.grant.enabled":"false",
+                "post.logout.redirect.uris":"http://localhost:8000"
+            }
         }
 
         if client_id_in_keycloak:
@@ -143,7 +177,8 @@ async def configure_app_client():
 
 @app.on_event("startup")
 async def startup_event():
-    await configure_app_client()
+    print("FASTAPI application starting... Configuring Kecyloak client...")
+    #await configure_app_client()
 
 @app.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user_endpoint(user: UserRegister):
@@ -173,36 +208,92 @@ async def register_user_endpoint(user: UserRegister):
         print(f"Username {user.username} registered successfully")
         return {"message": "User registered successfully"}
     except requests.exceptions.RequestException as e:
-        print(f"Error registering user: {e}")
+        print(f"Error registering user {user.username}: {e}")
         if response.status_code == 409:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this username or email already exists")
-        raise HTTPException(status_code=response.status_code if hasattr(response, 'status_code') else status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to register user: {e}")
+        raise HTTPException(status_code=response.status_code if hasattr(response, 'status_code') else status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to register user {user.username}: {e}")
 
-@app.post("/login")
-async def login_for_access_token(user: UserLogin):
+
+@app.get("/login")
+async def login_for_access_token():
+    #General state for CSRF protection
+    state = secrets.token_urlsafe(32)
+    #Build authorization url
+    auth_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth"
+    params = {
+        "client_id":APP_CLIENT_ID,
+        "redirect_uri":f"{APP_HOME_URL}",
+        "response_type":"code",
+        "scope":"openid email profile",
+        "state":state
+    }
+    query_string = urlencode(params)
+    redirect_url = f"{auth_url}?{query_string}"
+    print(f"Redirecting to Keycloak's login page:{redirect_url}")
+    return RedirectResponse(url=redirect_url)
+
+@app.get("/callback")
+async def callback(code:str, state:str=None):
+    """Handles the callback from Keycloak after user logs in """
+    print(f"Received authorization code:{code}")
+    #Exchange authorization code for tokens
     token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
     payload = {
-        "client_id": APP_CLIENT_ID,           #fast-api
-        "client_secret": APP_CLIENT_SECRET,    #from credentials app
-        "username": user.username,      #admin
-        "password": user.password,      #admin@123
-        "grant_type": "password"
+        "client_id":APP_CLIENT_ID,
+        "client_secret":APP_CLIENT_SECRET,
+        "code":code,
+        "grant_type":"authorization_code",
+        "redirect_uri":f"{APP_HOME_URL}/callback"
     }
     try:
-        response = requests.post(token_url, data=payload)
+        response = requests.post(token_url,data=payload)
         response.raise_for_status()
-        print(f"User {user.username} logged in successfully")
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error during user login: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials or user login failed",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        tokens = response.json()
+        access_token = tokens.get('access_token','')
+        print(f"access token :{access_token}")
+        
+        #to get username and email
+        payload_part = access_token.split('.')[1]
+        print(f"payload part:{payload_part}")
+        decoded_payload = base64.urlsafe_b64decode(payload_part)
+        print(f"decoded payload:{decoded_payload}")
+        user_info = json.loads(decoded_payload)
+        print(f"user info:{user_info}")
+        
+        #Printing user info
+        print(f"Username : {user_info.get('preferred_username','N/A')}")
+        print(f"Email : {user_info.get('email','N/A')}")
+        print(f"Access token expires in :{tokens.get('expires_in',0)/60} minutes")
 
+        #Redirect to home page with token
+        return RedirectResponse(url=f"{APP_HOME_URL}/?token={tokens['access_token']}")
+    
+    except requests.exceptions.RequestException as e:
+        print(f"Token exchange failed: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Authentication failed")
 @app.post("/logout")
 async def logout_user(token_refresh: TokenRefresh):
+    #Logout user and revoke refresh token
+    #Checking username from refresh token, app_client_id and app_client_secret
+    introspection_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/introspect"
+    introspect_payload = {
+        "client_id":APP_CLIENT_ID,
+        "client_secret":APP_CLIENT_SECRET,
+        "token":token_refresh.refreshToken,
+        "token_type_hint":"refresh_token"
+    }
+    username = None
+    try:
+        intropect_response = requests.post(introspection_url,data=introspect_payload)
+        if intropect_response.status_code == 200:
+            token_info = intropect_response.json()
+            if token_info.get("active"):   
+                username = token_info.get("preferred_username") or token_info.get("username")
+                print(f"User {username} is logging out...")
+    except Exception as e:
+        print(f"Warning: Could not introspect token before logout:{e}")
+
+    #Logging out
     logout_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout"
     payload = {
         "client_id": APP_CLIENT_ID,
@@ -212,7 +303,8 @@ async def logout_user(token_refresh: TokenRefresh):
     try:
         response = requests.post(logout_url, data=payload)
         response.raise_for_status()
-        return {"message": "Logged out successfully"}
+        print(f"User {username} logged out successfully")
+        return {"message": f"User {username} logged out successfully"}
     except requests.exceptions.RequestException as e:
         print(f"Error during user logout: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Logout failed")
