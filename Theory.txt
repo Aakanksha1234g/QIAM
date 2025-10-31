@@ -1,7 +1,7 @@
 Access Token:- After login users will receive it.
 Refresh Token:- If current access token expires, refresh token is used to get a new access token without user credentials.
                 Refresh token should be stored securely on client side.
-                If it is used to logout then the associated access token will become inactive then user will hav eto login again.
+                If it is used to logout then the associated access token will become inactive then user will have to login again.
 realm-management :- This default keycloak's client is used to assign permissions to all the other clients.
 
 
@@ -18,7 +18,7 @@ APP_CLIENT Usage:
     1. To login/logout and introspect user.
     2. Has DirectAccessGrantsEnabled(to access user credentials for tokens),
     3. Has authentication flow: Standard flow, Direct Access Grants, Service accounts roles.
-    
+
 
 Login endpoint response:-
     1. access_token ="";        //to access resources
@@ -47,8 +47,9 @@ To register users:-
         d. manage-realm :- create/delete realms
         e. query-users :- search user info in realm.
 
-
-If keycloak serve is started with this command: ./bin/kc.sh start-dev
+####################################################################################################################################################
+H2 embedded database
+If keycloak server is started with this command: ./bin/kc.sh start-dev
 then Keycloak uses H2 embedded database(runs inside keycloak) stored in data/h2/keycloakdb.*
 On this location:
     (venv) ak@ak-OptiPlex-Micro-Plus-7010:~/Projects/QIAM/keyclk/keycloak-api-client/keycloak-26.4.1/data/h2$ ls
@@ -62,4 +63,39 @@ Reason for not using H2 embedded database:
     2.File corruption risk
     3.Concurrent access
 
-Note:- Postgresql is being used for production
+Note:- 
+    1.Postgresql is being used for production
+
+When the user logs in the Keycloak creates two sessions:
+1.Browser SSO session : Stored as cookies in Keycloak_session.
+2.Client session : For the application(in this case FastAPI client app).
+
+##############################################################################################################################################
+Sessions
+1.The time upto which we can see the user's session is set through :
+    Realm Settings->Sessions->SSO Session Settings :
+        1. SSO Session Idle : 1 hour 
+            -> After login untill this time user will be visible in sessions tab
+            -> If user inactivity is found, refresh token expires, user has to login again.
+        2. SSO Session Max : 1 day
+            -> After this time refresh token expires, user has to login again.
+        3. SSO Session Idle Remember Me :
+        4. SSO Session Max Remember Me :
+
+        Note: If all 4 are checked then session idle and session max are applied.
+
+###############################################################################################################################################
+Tokens 
+    1.Token timeline:
+        Case 1: 
+            Realm = demo
+            Realm settings->Sessions->Client session settings(both are blank)
+            Tokens->Access tokens->Access Token Lifespan(is the access token expiry time)
+        Case 2:
+            Realm = demo
+            Realm settings->Sessions->Client session settings->Client Session Idle =5 minute 
+                                                             ->Client Session Max = 3 minutes( is the access and refresh token expiry time)
+                                                                - so user must use refresh token to get new access token within 3 minutes
+
+
+
