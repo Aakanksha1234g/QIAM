@@ -1,4 +1,5 @@
-import token
+from typing import Optional
+from fastapi import Header
 from urllib import request
 from fastapi import FastAPI, HTTPException, status, Form
 from fastapi.responses import RedirectResponse
@@ -13,14 +14,17 @@ import secrets
 import time
 import base64
 import json
-import datetime
+import urllib.parse, requests
+from datetime import datetime
+import datetime as dateTime
+from logged_in_user import login_details, set_logged_in_user_details
 
 app = FastAPI()
 
 #Fix browser block(CORS) from redirecting
 app.add_middleware( 
     CORSMiddleware,
-    allow_origins=["*"],       #at production this will change with the applications URL
+    allow_origins=["http://192.168.29.136:8000"],       #at production this will change with the applications URL
     allow_credentials = True,
     allow_methods=["*"],
     allow_headers = ["*"],
@@ -47,18 +51,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class UserRegister(BaseModel):
     username: str
-    password: str
     email: str
-    firstName: str
-    lastName: str
 
 class UserLogin(BaseModel):
     username: str
-    password: str
     email : str
 
 class TokenRefresh(BaseModel):
-    refreshToken: str
+    # refreshToken: str
+    accessToken : str
 
 class TokenIntrospect(BaseModel):
     accessToken: str
@@ -74,22 +75,22 @@ def get_admin_access_token():
     }
 
     try:
-        print("posting request to keycloak with token url and payload")
+        # print("posting request to keycloak with token url and payload")
         response = requests.post(token_url, data=payload)
-        print("response got from keycloak is:",response)
+        # print("response got from keycloak is:",response)
         response.raise_for_status()                    #checks for response status, if response status is 200 then program continues othewise raises exception that request has failed                
-        print("Admin access token successfully obtained.")       
-        print("Admin token is:", response.json()["access_token"])
+        # print("Admin access token successfully obtained.")       
+        # print("Admin token is:", response.json()["access_token"])
         return response.json()["access_token"]
     except requests.exceptions.RequestException as e:
         print(f"Error obtaining admin access token with admin client: {e}")
         return None
 
 async def configure_app_client():
-    print("Getting access token...")
+    # print("Getting access token...")
     admin_access_token = get_admin_access_token()
     if not admin_access_token:
-        print("Failed to configure app client: Could not obtain admin access token")
+        # print("Failed to configure app client: Could not obtain admin access token")
         return
 
     clients_url = f"{KEYCLOAK_SERVER_URL}/admin/realms/{KEYCLOAK_REALM}/clients"
@@ -97,19 +98,19 @@ async def configure_app_client():
 
     try:
         # Check if fastapi-app client already exists
-        print("Sending request to keycloak and checking if app client exists")
+        # print("Sending request to keycloak and checking if app client exists")
         response = requests.get(f"{clients_url}?clientId={APP_CLIENT_ID}", headers=headers)
         response.raise_for_status()
         existing_clients = response.json()
-        print("status of app client is ",existing_clients)
+        # print("status of app client is ",existing_clients)
 
         client_id_in_keycloak = None
         if existing_clients:
-            print("APP_CLIENT already exists...")
+            # print("APP_CLIENT already exists...")
             client_id_in_keycloak = existing_clients[0]["id"]
-            print("client_id_in_keycloak:",client_id_in_keycloak)
+            # print("client_id_in_keycloak:",client_id_in_keycloak)
 
-        print("app client behaviour")
+        # print("app client behaviour")
         app_client_config = {               #fastapi client behaviour definition
             "clientId": APP_CLIENT_ID,       #client name
             "enabled": True,                 # active client and can be used for authentication
@@ -132,40 +133,40 @@ async def configure_app_client():
         }
 
         if client_id_in_keycloak:
-            print(f" App client already exists. Updating it {APP_CLIENT_ID}...")
+            # print(f" App client already exists. Updating it {APP_CLIENT_ID}...")
             update_url = f"{clients_url}/{client_id_in_keycloak}"
             response = requests.put(update_url, headers=headers, json=app_client_config)
             response.raise_for_status()
-            print(f"Client {APP_CLIENT_ID} updated successfully.")
+            # print(f"Client {APP_CLIENT_ID} updated successfully.")
         else:
-            print(f"Creating new app client {APP_CLIENT_ID}...")
+            # print(f"Creating new app client {APP_CLIENT_ID}...")
             response = requests.post(clients_url, headers=headers, json=app_client_config)
             response.raise_for_status()
-            print(f"Client {APP_CLIENT_ID} created successfully.")
+            # print(f"Client {APP_CLIENT_ID} created successfully.")
             response = requests.get(f"{clients_url}?clientId={APP_CLIENT_ID}", headers=headers)
             response.raise_for_status()
             client_id_in_keycloak = response.json()[0]["id"]
 
         # Assign service account roles to 'fastapi-app' client
         if client_id_in_keycloak:
-            print(f"Assigning service account roles for client {APP_CLIENT_ID}...")
+            # print(f"Assigning service account roles for client {APP_CLIENT_ID}...")
             service_account_user_url = f"{clients_url}/{client_id_in_keycloak}/service-account-user"
-            print("Sending request to keycloak with app client details and header")
+            # print("Sending request to keycloak with app client details and header")
             response = requests.get(service_account_user_url, headers=headers)
             response.raise_for_status()
-            print("Service account user id for app client is:",response.json()["id"])
+            # print("Service account user id for app client is:",response.json()["id"])
             service_account_user_id = response.json()["id"]
-            print("Sending request to keycloak for realm-management roles")
+            # print("Sending request to keycloak for realm-management roles")
             response = requests.get(f"{clients_url}?clientId=realm-management", headers=headers)
             response.raise_for_status()
             realm_management_client_id = response.json()[0]["id"]
-            print("realm_management_client_id is:",realm_management_client_id)
+            # print("realm_management_client_id is:",realm_management_client_id)
             roles_url = f"{clients_url}/{realm_management_client_id}/roles"
-            print("Sending request to keycloak to get the avaialable roles for the app client...")
+            # print("Sending request to keycloak to get the avaialable roles for the app client...")
             response = requests.get(roles_url, headers=headers)
             response.raise_for_status()
             available_roles = response.json()
-            print("Available roles for app client:",available_roles)
+            # print("Available roles for app client:",available_roles)
             roles_to_assign = [
                 role for role in available_roles
                 if role["name"] in ["manage-users", "query-users"]
@@ -174,7 +175,7 @@ async def configure_app_client():
                 assign_roles_url = f"{KEYCLOAK_SERVER_URL}/admin/realms/{KEYCLOAK_REALM}/users/{service_account_user_id}/role-mappings/clients/{realm_management_client_id}"
                 response = requests.post(assign_roles_url, headers=headers, json=roles_to_assign)
                 response.raise_for_status()
-                print("Service account roles assigned successfully for fastapi-app.")
+                # print("Service account roles assigned successfully for fastapi-app.")
             else:
                 print("Required roles (manage-users, query-users) not found in realm-management client for fastapi-app.")
     except requests.exceptions.RequestException as e:
@@ -199,19 +200,13 @@ async def register_user_endpoint(user: UserRegister):
         "username": user.username,
         "enabled": True,
         "email": user.email,
-        "firstName": user.firstName,
-        "lastName": user.lastName,
-        "credentials": [{
-            "type": "password",
-            "value": user.password,
-            "temporary": False
-        }]
+        "emailVerified":True,
     }
     try:
         response = requests.post(users_url, headers=headers, json=user_data)
         response.raise_for_status()
         print(f"Username {user.username} registered successfully")
-        return {"message": "User registered successfully"}
+        return {"message": f"User {user.username} registered successfully"}
     except requests.exceptions.RequestException as e:
         print(f"Error registering user {user.username}: {e}")
         if response.status_code == 409:
@@ -226,7 +221,7 @@ async def logout_user(token_refresh: TokenRefresh):
     introspect_payload = {
         "client_id":APP_CLIENT_ID,
         "client_secret":APP_CLIENT_SECRET,
-        "token":token_refresh.refreshToken,
+        "token":token_refresh.accessToken,
         "token_type_hint":"refresh_token"
     }
     username = None
@@ -245,7 +240,7 @@ async def logout_user(token_refresh: TokenRefresh):
     payload = {
         "client_id": APP_CLIENT_ID,
         "client_secret": APP_CLIENT_SECRET,
-        "refresh_token": token_refresh.refreshToken
+        "refresh_token": token_refresh.accessToken
     }
     try:
         response = requests.post(logout_url, data=payload)
@@ -265,8 +260,11 @@ async def introspect_token_endpoint(token_introspect: TokenIntrospect):
         "token": token_introspect.accessToken
     }
     try:
+        now = datetime.now()
         response = requests.post(introspection_url, data=payload)
+        print(f"Introspect request has been sent at {now.strftime("%H:%M:%S")}")
         response.raise_for_status()
+        print(f"response is : {response.json()}")
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error during token introspection: {e}")
@@ -276,32 +274,45 @@ async def introspect_token_endpoint(token_introspect: TokenIntrospect):
 async def root():
     return {"message": "Keycloak API Client (FastAPI) is running!"}
 
+@app.get("/logged_in_user_details")
+async def user_info():
+    return {"message":login_details()}
+
 #To get the user info in FastAPI Swagger
 @app.post("/login")
 async def login_for_access_token(user:UserLogin):
     print("Login endpoint has been called...")
     token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+    # admin_token = get_admin_access_token()
     param = {
         "client_id":APP_CLIENT_ID,
         "client_secret":APP_CLIENT_SECRET,   #Required if confidential
-        "grant_type":"password",
-        "username":user.username,
-        "password":user.password,
+        "grant_type":'client_credentials',
         "scope":"openid email profile"
     }
     try:
-        response = requests.post(token_url,param)
+        response = requests.post(token_url,data=param)
+        response.raise_for_status()
         if response.status_code!=200:
             raise HTTPException(status_code=400,detail="Invalid credentials")
         
         tokens = response.json()
-        # print("tokens are:",tokens)
-        access_token_expiry = datetime.timedelta(seconds=tokens['expires_in'])
-        refresh_token_expiry = datetime.timedelta(seconds=tokens['refresh_expires_in'])
-        print(f"User {user.username} logged in")
-        print(f"Access token for user {user.username} expires in {access_token_expiry}")
-        print(f"Refresh token for user {user.username} expires in {refresh_token_expiry}")
-        return tokens
+        access_token_expiry = dateTime.timedelta(seconds=tokens['expires_in'])
+        refresh_token_expiry = dateTime.timedelta(seconds=tokens['refresh_expires_in'])
+        now = datetime.now()
+        print(f"User {user.username} logged in at {now.strftime("%H:%M:%S")}")
+        print(f"Access token for user {user.username} is given at expires in {access_token_expiry} minutes")
+        print(f"Refresh token for user {user.username} expires in {refresh_token_expiry} minutes")
+        set_logged_in_user_details(user.username,user.email)
+        return {
+            "username":user.username,
+            "email":user.email,
+            "access_token":tokens['access_token'],
+            "expires_in":tokens['expires_in'],
+            "refresh_expires_in":tokens["refresh_expires_in"],
+            "access_token_expires_in":str(access_token_expiry),
+            "refresh_token_expires_in":str(refresh_token_expiry)
+        }
     except requests.exceptions.RequestException as e:
         print(f"Error while user login : {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="User login failed")
@@ -317,15 +328,18 @@ async def refresh_token_endpoint(refresh:TokenRefresh):
         "refresh_token":refresh.refreshToken
     }
     try:
-        response = requests.port(token_url,data=param)
+        response = requests.post(token_url,data=param)
         response.raise_for_status()
         tokens = response.json()
         access_token = tokens.get("access_token")
         refresh_token = tokens.get("refresh_token")
-        access_token_expiry = datetime.timedelta(seconds=tokens["expires_in"])
-        refresh_token_expiry = datetime.timedelta(seconds=tokens["refresh_expires_in"])
-        print(f"New access token expires in : {access_token_expiry}")
-        print(f"New refresh token expires in : {refresh_token_expiry}")
+        access_token_expiry = dateTime.timedelta(seconds=tokens["expires_in"])
+        refresh_token_expiry = dateTime.timedelta(seconds=tokens["refresh_expires_in"])
+        now = datetime.now()
+
+        print(f"New tokens have been assigned at:{now.strftime("%H:%M:%S")}")
+        print(f"New access token expires in : {access_token_expiry} minutes")
+        print(f"New refresh token expires in : {refresh_token_expiry} minutes")
 
         return {
             "access_token":access_token,

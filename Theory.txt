@@ -98,4 +98,19 @@ Tokens
                                                                 - so user must use refresh token to get new access token within 3 minutes
 
 
+################################################################################################################################################
+To allow user login and create user without password (only with username and email):
+In realm -demo
+Step1: Create a authentication flow:
+    Authentication ->Flows -> browser->Actions(button)->Duplicate->Name(broser-no-password)->Duplicate
+Step2: Bind the new browser flow for passwordless authentication.
+    Authentication ->Flows -> browser-no-password -> three dots->Bind ->Browser Flow ->Save
+Step3: Remove the Username password form execution from the new browser flow
+    1. Authentication -> Flow details -> browser-no-password -> Delete Username password form   
+    2. Add execution -> search username form (check it) -> save ->Required as requirement
+Step4: Clients-> fastapi-admin-client -> Advanced -> Authentication flow overrides -> Browser Flow-> browser-no-password ->Save
+       Note: same for fastapi-app-client also   
+
+##################################################################################################################################################
+
 
