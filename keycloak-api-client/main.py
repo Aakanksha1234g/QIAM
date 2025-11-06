@@ -1,20 +1,10 @@
 from typing import Optional
-from fastapi import Header
-from urllib import request
-from fastapi import FastAPI, HTTPException, status, Form
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2AuthorizationCodeBearer
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
-from keycloak import KeycloakOpenID
-from urllib.parse import quote
 import requests
-from urllib.parse import urlencode
-import secrets
-import time
-import base64
-import json
-import urllib.parse, requests
+import requests
 from datetime import datetime
 import datetime as dateTime
 from logged_in_user import login_details, set_logged_in_user_details
@@ -49,6 +39,9 @@ APP_HOME_URL = "http://localhost:8000"
 # OAuth2PasswordBearer for dependency injection
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+#token_state of access token
+token_state = None
+
 class UserRegister(BaseModel):
     username: str
     email: str
@@ -57,7 +50,7 @@ class UserLogin(BaseModel):
     username: str
     email : str
 
-class TokenRefresh(BaseModel):
+class UserLogout(BaseModel):
     # refreshToken: str
     accessToken : str
 
@@ -213,46 +206,9 @@ async def register_user_endpoint(user: UserRegister):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this username or email already exists")
         raise HTTPException(status_code=response.status_code if hasattr(response, 'status_code') else status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to register user {user.username}: {e}")
 
-@app.post("/logout")
-async def logout_user(token_refresh: TokenRefresh):
-    #Logout user and revoke refresh token
-    #Checking username from refresh token, app_client_id and app_client_secret
-    introspection_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/introspect"
-    introspect_payload = {
-        "client_id":APP_CLIENT_ID,
-        "client_secret":APP_CLIENT_SECRET,
-        "token":token_refresh.accessToken,
-        "token_type_hint":"refresh_token"
-    }
-    username = None
-    try:
-        intropect_response = requests.post(introspection_url,data=introspect_payload)
-        if intropect_response.status_code == 200:
-            token_info = intropect_response.json()
-            if token_info.get("active"):   
-                username = token_info.get("preferred_username") or token_info.get("username")
-                print(f"User {username} is logging out...")
-    except Exception as e:
-        print(f"Warning: Could not introspect token before logout:{e}")
-
-    #Logging out
-    logout_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout"
-    payload = {
-        "client_id": APP_CLIENT_ID,
-        "client_secret": APP_CLIENT_SECRET,
-        "refresh_token": token_refresh.accessToken
-    }
-    try:
-        response = requests.post(logout_url, data=payload)
-        response.raise_for_status()
-        print(f"User {username} logged out successfully")
-        return {"message": f"User {username} logged out successfully"}
-    except requests.exceptions.RequestException as e:
-        print(f"Error during user logout: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Logout failed")
-
 @app.post("/introspect")
 async def introspect_token_endpoint(token_introspect: TokenIntrospect):
+    global token_state
     introspection_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token/introspect"
     payload = {
         "client_id": APP_CLIENT_ID,
@@ -265,6 +221,9 @@ async def introspect_token_endpoint(token_introspect: TokenIntrospect):
         print(f"Introspect request has been sent at {now.strftime("%H:%M:%S")}")
         response.raise_for_status()
         print(f"response is : {response.json()}")
+        result = response.json()
+        token_state = result.get("active")
+        print("token state is:",token_state)
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error during token introspection: {e}")
@@ -276,7 +235,9 @@ async def root():
 
 @app.get("/logged_in_user_details")
 async def user_info():
-    return {"message":login_details()}
+    print("token state is:",token_state)
+    print("logged in details are:",login_details(token_state))
+    return {"message":login_details(token_state)}
 
 #To get the user info in FastAPI Swagger
 @app.post("/login")
@@ -304,58 +265,29 @@ async def login_for_access_token(user:UserLogin):
         print(f"Access token for user {user.username} is given at expires in {access_token_expiry} minutes")
         print(f"Refresh token for user {user.username} expires in {refresh_token_expiry} minutes")
         set_logged_in_user_details(user.username,user.email)
-        return {
-            "username":user.username,
-            "email":user.email,
-            "access_token":tokens['access_token'],
-            "expires_in":tokens['expires_in'],
-            "refresh_expires_in":tokens["refresh_expires_in"],
-            "access_token_expires_in":str(access_token_expiry),
-            "refresh_token_expires_in":str(refresh_token_expiry)
-        }
+        return tokens
     except requests.exceptions.RequestException as e:
         print(f"Error while user login : {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="User login failed")
 
-@app.post("/refresh")
-async def refresh_token_endpoint(refresh:TokenRefresh):
-    print("/refresh endpoint has been called...")
-    token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
-    param = {
+@app.post("/revoke-token")
+async def revoke_token(token: Optional[str]=None):
+    """Revoke access or refresh token using Keycloak's revocation endpoint
+    Provide access/refresh token or Authorization bearer token(access/refresh token) """
+    print("Token:",token)
+    revoke_token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/revoke"
+    payload = {
         "client_id":APP_CLIENT_ID,
         "client_secret":APP_CLIENT_SECRET,
-        "grant_type":"refresh_token",
-        "refresh_token":refresh.refreshToken
+        "token":token
     }
     try:
-        response = requests.post(token_url,data=param)
+        response = requests.post(revoke_token_url,data=payload)
         response.raise_for_status()
-        tokens = response.json()
-        access_token = tokens.get("access_token")
-        refresh_token = tokens.get("refresh_token")
-        access_token_expiry = dateTime.timedelta(seconds=tokens["expires_in"])
-        refresh_token_expiry = dateTime.timedelta(seconds=tokens["refresh_expires_in"])
-        now = datetime.now()
-
-        print(f"New tokens have been assigned at:{now.strftime("%H:%M:%S")}")
-        print(f"New access token expires in : {access_token_expiry} minutes")
-        print(f"New refresh token expires in : {refresh_token_expiry} minutes")
-
-        return {
-            "access_token":access_token,
-            "token_type":"bearer",
-            "expires_in":tokens["expires_in"],
-            "refresh_token":refresh_token,
-            "refresh_expires_in":tokens["refresh_expires_in"],
-            "access_token_expires_different_format":str(access_token_expiry),
-            "refresh_token_expired_different_format":str(refresh_token_expiry)
-        }
-    except requests.exceptions.HTTPError as e:
-        print(f"Refresh token failed:{e}")
-        raise HTTPException(status_code=400,detail="Invalid refresh token")
+        return {"message":"Token revoked."}
     except requests.exceptions.RequestException as e:
-        print(f"Refresh token failed with request exception:{e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        print(f"Error revoking token: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to revoke token:{e}")
 
 # #For redirection to application
 # @app.get("/login")
@@ -418,3 +350,81 @@ async def refresh_token_endpoint(refresh:TokenRefresh):
 #     except requests.exceptions.RequestException as e:
 #         print(f"Token exchange failed: {e}")
 #         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Authentication failed")
+
+# @app.post("/logout")
+# async def logout_user(token:UserLogout):
+#     #Logout user and revoke refresh token
+#     #Checking username from refresh token, app_client_id and app_client_secret
+#     url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/introspect"
+#     payload = {
+#         "client_id":APP_CLIENT_ID,
+#         "client_secret":APP_CLIENT_SECRET,
+#         "token":token.accessToken,
+#     }
+#     username = None
+#     try:
+#         response = requests.post(url,data=payload)
+#         if response.status_code == 200:
+#             token_info = response.json()
+#             if token_info.get("active"):   
+#                 username = token_info.get("preferred_username") or token_info.get("username")
+#                 print(f"User {username} is logging out...")
+#     except Exception as e:
+#         print(f"Warning: Could not introspect token before logout:{e}")
+
+#     #Logging out
+#     logout_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout"
+#     payload = {
+#         "client_id": APP_CLIENT_ID,
+#         "client_secret": APP_CLIENT_SECRET,
+#         "refresh_token": token.accessToken
+#     }
+#     try:
+#         response = requests.post(logout_url, data=payload)
+#         response.raise_for_status()
+#         print(f"User {username} logged out successfully")
+#         return {"message": f"User {username} logged out successfully"}
+#     except requests.exceptions.RequestException as e:
+#         print(f"Error during user logout: {e}")
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Logout failed")
+
+# @app.post("/refresh")
+# async def refresh_token_endpoint(refresh:TokenRefresh):
+#     print("/refresh endpoint has been called...")
+#     token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+#     param = {
+#         "client_id":APP_CLIENT_ID,
+#         "client_secret":APP_CLIENT_SECRET,
+#         "grant_type":"refresh_token",
+#         "refresh_token":refresh.refreshToken
+#     }
+#     try:
+#         response = requests.post(token_url,data=param)
+#         response.raise_for_status()
+#         tokens = response.json()
+#         access_token = tokens.get("access_token")
+#         refresh_token = tokens.get("refresh_token")
+#         access_token_expiry = dateTime.timedelta(seconds=tokens["expires_in"])
+#         refresh_token_expiry = dateTime.timedelta(seconds=tokens["refresh_expires_in"])
+#         now = datetime.now()
+
+#         print(f"New tokens have been assigned at:{now.strftime("%H:%M:%S")}")
+#         print(f"New access token expires in : {access_token_expiry} minutes")
+#         print(f"New refresh token expires in : {refresh_token_expiry} minutes")
+
+#         return {
+#             "access_token":access_token,
+#             "token_type":"bearer",
+#             "expires_in":tokens["expires_in"],
+#             "refresh_token":refresh_token,
+#             "refresh_expires_in":tokens["refresh_expires_in"],
+#             "access_token_expires_different_format":str(access_token_expiry),
+#             "refresh_token_expired_different_format":str(refresh_token_expiry)
+#         }
+#     except requests.exceptions.HTTPError as e:
+#         print(f"Refresh token failed:{e}")
+#         raise HTTPException(status_code=400,detail="Invalid refresh token")
+#     except requests.exceptions.RequestException as e:
+#         print(f"Refresh token failed with request exception:{e}")
+#         raise HTTPException(status_code=500, detail="Internal server error")
+
