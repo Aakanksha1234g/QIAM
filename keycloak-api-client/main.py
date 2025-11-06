@@ -98,14 +98,14 @@ async def login_for_access_token(user:UserLogin):
     if not userExists:
         print(f"User {user.username} doesn't exist. Register the user.")
         raise HTTPException(status_code=500, detail="User doesn't exist in Keycloak.Register the user.")
-    print(f"User {user.username} exists in Keycloak")
-    token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+    print(f"User {user.username} exists in Keycloak") 
+    token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"   #OpenID Connect Protocol
     # admin_token = get_admin_access_token()
     param = {
         "client_id":APP_CLIENT_ID,
         "client_secret":APP_CLIENT_SECRET,   #Required if confidential
-        "grant_type":'client_credentials',
-        "scope":"openid email profile"
+        "grant_type":'client_credentials',    # using OAuth 2.0 to get access token for client
+        "scope":"openid email profile"      #OpenID Connect to get identity information.
     }
     try:
         response = requests.post(token_url,data=param)
@@ -125,7 +125,7 @@ async def login_for_access_token(user:UserLogin):
         print(f"Error while user login : {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="User login failed")
 
-@app.post("/revoke-token")
+@app.post("/revoke-token")       
 async def revoke_token(token: Optional[str]=None):
     """Revoke access or refresh token using Keycloak's revocation endpoint
     Provide access/refresh token or Authorization bearer token(access/refresh token) """
