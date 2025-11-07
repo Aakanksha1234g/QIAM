@@ -99,16 +99,16 @@ async def login_for_access_token(user:UserLogin):
         print(f"User {user.username} doesn't exist. Register the user.")
         raise HTTPException(status_code=500, detail="User doesn't exist in Keycloak.Register the user.")
     print(f"User {user.username} exists in Keycloak") 
-    token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"   #OpenID Connect Protocol
+    token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"   #OpenID Connect Protocol's endpoint
     # admin_token = get_admin_access_token()
     param = {
         "client_id":APP_CLIENT_ID,
         "client_secret":APP_CLIENT_SECRET,   #Required if confidential
         "grant_type":'client_credentials',    # using OAuth 2.0 to get access token for client
-        "scope":"openid email profile"      #OpenID Connect to get identity information.
+        "scope":"profile-1"       #OpenID Connect to get identity information.
     }
     try:
-        response = requests.post(token_url,data=param)
+        response = requests.post(token_url,data=param)            # exchanging credentials to get tokens
         response.raise_for_status()
         if response.status_code!=200:
             raise HTTPException(status_code=400,detail="Invalid credentials")
@@ -128,8 +128,11 @@ async def login_for_access_token(user:UserLogin):
 @app.post("/revoke-token")       
 async def revoke_token(token: Optional[str]=None):
     """Revoke access or refresh token using Keycloak's revocation endpoint
-    Provide access/refresh token or Authorization bearer token(access/refresh token) """
+    Provide access/refresh token or Authorization bearer token(access/refresh token) 
+    """
     print("Token:",token)
+    #revoke_token_url is the token revocation feature of OAuth 2.0.
+    #This token revocation feature revokes the access/refresh tokens
     revoke_token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/revoke"
     payload = {
         "client_id":APP_CLIENT_ID,

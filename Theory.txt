@@ -40,12 +40,14 @@ Login endpoint response:-
 
 
 To register users:-
-    1.ADMIN_CLIENT should have these permisisons/roles from realm-management client:-
+    1.ADMIN_CLIENT should have these permissions/roles from realm-management client:-
         a. manage-clients :- create/update/delete clients.
         b. view-clients :- view clients. 
         c. manage-users :- create/delete/update user and user sessions.
         d. manage-realm :- create/delete realms
         e. query-users :- search user info in realm.
+    2.APP_CLIENT should have these permissions/roles from realm-management client :-
+        a. impersonation :- to login as another user(without password).
 
 ####################################################################################################################################################
 H2 embedded database
