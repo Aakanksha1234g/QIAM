@@ -54,7 +54,12 @@ async def register_user_endpoint(user: UserRegister):
         print(f"Error registering user {user.username}: {e}")
         if response.status_code == 409:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this username or email already exists")
-        raise HTTPException(status_code=response.status_code if hasattr(response, 'status_code') else status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to register user {user.username}: {e}")
+        if hasattr(response, 'status_code'):
+            raise HTTPException(status_code=response.status_code,detail=f"Failed to register user {user.username}: {e}")
+        else:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Failed to register user {user.username}: {e}")
+
 
 @app.post("/introspect")
 async def introspect_token_endpoint(token_introspect: TokenIntrospect):
@@ -100,10 +105,9 @@ async def login_for_access_token(user:UserLogin):
         raise HTTPException(status_code=500, detail="User doesn't exist in Keycloak.Register the user.")
     print(f"User {user.username} exists in Keycloak") 
     token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"   #OpenID Connect Protocol's endpoint
-    # admin_token = get_admin_access_token()
     param = {
         "client_id":APP_CLIENT_ID,
-        "client_secret":APP_CLIENT_SECRET,   #Required if confidential
+        "client_secret":APP_CLIENT_SECRET,   
         "grant_type":'client_credentials',    # using OAuth 2.0 to get access token for client
         "scope":"profile-1"       #OpenID Connect to get identity information.
     }

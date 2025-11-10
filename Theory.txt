@@ -48,7 +48,11 @@ To register users:-
         e. query-users :- search user info in realm.
     2.APP_CLIENT should have these permissions/roles from realm-management client :-
         a. impersonation :- to login as another user(without password).
+        b. service account enabled
 
+Clients used in endpoints:
+    1. fastapi-app-client -> introspect, login, revoke
+    2. fastapi-admin-client ->  register
 ####################################################################################################################################################
 H2 embedded database
 If keycloak server is started with this command: ./bin/kc.sh start-dev
