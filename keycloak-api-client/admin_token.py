@@ -4,7 +4,7 @@ import requests
 
 def get_admin_access_token():
     print("Inside get_admin_access_token function...")
-    #token_ril is used to get access token for admin client
+    #token_url is used to get access token for admin client
     token_url = f"{KEYCLOAK_SERVER_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
     payload = {
         "client_id": ADMIN_CLIENT_ID,
@@ -16,7 +16,9 @@ def get_admin_access_token():
         # print("posting request to keycloak with token url and payload")
         response = requests.post(token_url, data=payload)
         # print("response got from keycloak is:",response)
-        response.raise_for_status()                    #checks for response status, if response status is 200 then program continues othewise raises exception that request has failed                
+        # response.raise_for_status() - checks for response status, 
+        # if response status is 200 then program continues othewise raises exception that request has failed                
+        response.raise_for_status()                    
         # print("Admin access token successfully obtained.")       
         # print("Admin token is:", response.json()["access_token"])
         return response.json()["access_token"]
