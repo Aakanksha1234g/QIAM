@@ -101,14 +101,14 @@ Tokens
             Realm = demo
             Realm settings->Sessions->Client session settings->Client Session Idle =5 minute 
                                                              ->Client Session Max = 3 minutes( is the access and refresh token expiry time)
-                                                                - so user must use refresh token to get new access token within 3 minutes
+                                                                - so user must use refresh token to get new access token within 3 minutes 
 
 
 ################################################################################################################################################
 To allow user login and create user without password (only with username and email):
 In realm -demo
 Step1: Create a authentication flow:
-    Authentication ->Flows -> browser->Actions(button)->Duplicate->Name(broser-no-password)->Duplicate
+    Authentication ->Flows -> browser->Actions(button)->Duplicate->Name(browser-no-password)->Duplicate->(browser-no-password)save it like this.
 Step2: Bind the new browser flow for passwordless authentication.
     Authentication ->Flows -> browser-no-password -> three dots->Bind ->Browser Flow ->Save
 Step3: Remove the Username password form execution from the new browser flow
