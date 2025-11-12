@@ -119,4 +119,25 @@ Step4: Clients-> fastapi-admin-client -> Advanced -> Authentication flow overrid
 
 ##################################################################################################################################################
 
+Steps — admin side (Keycloak)
 
+Create roles
+
+Realm or client roles? Use client roles if permissions are client-specific. In Admin Console: Clients → fastapi-app-client → Roles → Create (Director, Producer).
+Or via Admin REST: POST /admin/realms/{realm}/clients/{clientId}/roles
+Create resources and scopes (optional for fine-grained perms)
+
+Clients → fastapi-app-client → Authorization → Resources → Create resource(s) representing APIs or entities.
+Add Scopes for actions (permission1, permission2).
+Create role-based policy
+
+Authorization → Policies → Create Policy → Type: Role.
+Configure to grant when a user has client role Director (or Producer).
+Create permission that ties resource(s) + role policy
+
+Authorization → Permissions → Create Permission (Resource-Based or Scope-Based) and attach the Role policy.
+When user has role, permission becomes granted for that resource/scope.
+Assign role to user
+
+Admin Console: Users → select user AK → Role Mappings → Client Roles → select fastapi-app-client → add Director.
+Or Admin REST: POST /admin/realms/{realm}/users/{userId}/role-mappings/clients/{clientUuid} with role representation.

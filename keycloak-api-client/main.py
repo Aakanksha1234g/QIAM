@@ -47,7 +47,7 @@ async def register_user_endpoint(user: UserRegister):
     }
     try:
         response = requests.post(users_url, headers=headers, json=user_data)
-        response.raise_for_status()
+        response.raise_for_status()           #raises exception for HTTP errors.
         print(f"Username {user.username} registered successfully")
         return {"message": f"User {user.username} registered successfully"}
     except requests.exceptions.RequestException as e:
