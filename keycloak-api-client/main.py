@@ -1,14 +1,14 @@
 from typing import Optional
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status,Request
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 from datetime import datetime
 import datetime as dateTime
 from logged_in_user import login_details, set_logged_in_user_details
 from users import check_user
-from utils.configuration import KEYCLOAK_REALM,KEYCLOAK_SERVER_URL,APP_CLIENT_ID,APP_CLIENT_SECRET,APP_HOME_URL,APP_REDIRECT_URL
+from utils.configuration import KEYCLOAK_REALM,KEYCLOAK_SERVER_URL,APP_CLIENT_ID,APP_CLIENT_SECRET
 from utils.configuration import UserLogin,TokenIntrospect,UserRegister
-from admin_token import get_admin_access_token,configure_app_client
+from admin_token import get_admin_access_token
 
 app = FastAPI()
 
@@ -26,8 +26,8 @@ token_state = None
 
 @app.on_event("startup")
 async def startup_event():
-    print("FASTAPI application starting... Configuring Kecyloak client...")
-    await configure_app_client()
+    print("FASTAPI application starting... ")
+    #await configure_app_client()
 
 @app.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user_endpoint(user: UserRegister):
@@ -150,4 +150,14 @@ async def revoke_token(token: Optional[str]=None):
     except requests.exceptions.RequestException as e:
         print(f"Error revoking token: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to revoke token:{e}")
+
+# @app.post("/attendance/mark")
+# async def mark_attendance(request:Request, body:dict):
+#     return {"msg":"Attendance marked","by_user":request.state.user["id"]}
+
+# @app.get("/attendance/own")
+# async def list_users(request:Request):
+#     cur = conn.cursor()
+#     cur.execute("SELECT id,email,full_name FROM users LIMIT 20")
+#     return cur.fetchall()
 

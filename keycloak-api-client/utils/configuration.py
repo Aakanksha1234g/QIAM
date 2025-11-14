@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+import psycopg2
 
 # Keycloak Configuration
 KEYCLOAK_SERVER_URL = "http://localhost:8080"      #keycloak webpage
@@ -16,6 +17,8 @@ APP_CLIENT_SECRET = "YpmSb1YJqavHiHDQL8dBZPdij9JSvp2z" # in credentials tab of f
 APP_REDIRECT_URL = "http://localhost:8000/"
 APP_HOME_URL = "http://localhost:8000"
 
+#Connect to database school
+# conn = psycopg2.connect()
 
 class UserRegister(BaseModel):
     username: str
