@@ -159,5 +159,6 @@ async def revoke_token(token: Optional[str]=None):
 # async def list_users(request:Request):
 #     cur = conn.cursor()
 #     cur.execute("SELECT id,email,full_name FROM users LIMIT 20")
+
 #     return cur.fetchall()
 
