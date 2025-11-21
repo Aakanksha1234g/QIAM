@@ -123,7 +123,8 @@ Steps — admin side (Keycloak)
 
 Create roles
 
-Realm or client roles? Use client roles if permissions are client-specific. In Admin Console: Clients → fastapi-app-client → Roles → Create (Director, Producer).
+Realm or client roles? Use client roles if permissions are client-specific.
+ In Admin Console: Clients → fastapi-app-client → Roles → Create (Director, Producer).
 Or via Admin REST: POST /admin/realms/{realm}/clients/{clientId}/roles
 Create resources and scopes (optional for fine-grained perms)
 
