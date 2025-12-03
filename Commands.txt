@@ -11,3 +11,31 @@ Login as "psql -U keycloak -d keycloak" to check data in keycloak database.
 To see users in keycloak: select username from user_entity;
 
 To see total clients in keycloak : select client_id, description, enabled from client;
+
+To get all the roles in the Project Bahubali 
+1. Export the realm with the client roles and groups.
+2. From that json file Copy the client LorvenAI-app array with all the roles and store it with a name "client-roles-template.json"
+3. From cli go to folder "~/Projects/QIAM/keyclk/keycloak-api-client/keycloak-26.4.1/bin" 
+    1. login with the admin credentials : ./kcadm.sh config credentials --server http://localhost:8081 --realm master --user admin --password admin@123
+    2. create a client : 
+          /kcadm.sh create clients -r LorvenAI-realm -s clientId=LorvenAI-app-Bahubali -s enabled=true -s publicClient=false -s protocol=openid-connect -s redirectUris='["*"]' -s webOrigins='["*"]' -s serviceAccountsEnabled=true -s authorizationServicesEnabled=true -s directAccessGrantsEnabled=true -s standardFlowEnabled=true
+    3. store the client id in a variable: 
+            CLIENT_UUID=$(./kcadm.sh get clients -r LorvenAI-realm --fields id,clientId -q clientId=LorvenAI-app-Bahubali | jq -r '.[0].id')
+    4. install jq with "sudo apt install jq"
+    5. Run this command to get all the roles in the new client LOrvenAI-app-Bahubali :
+       jq -c '.[]' ~/Downloads/client_roles_template.json | while read role; do
+        ./kcadm.sh create clients/$CLIENT_UUID/roles -r LorvenAI-realm -b "$role"
+        done
+    6.check if the roles have been created in the client LorvenAI-app-Bahubali roles section
+
+##TO login in keycloak with cli:
+(venv) ak@ak-OptiPlex-Micro-Plus-7010:~/Projects/QIAM/keyclk/keycloak-api-client/keycloak-26.4.1/bin$  ./kcadm.sh config credentials --server http://localhost:8081 --realm master --user admin --password admin@123
+
+Logging into http://localhost:8081 as user admin of realm master
+
+
+##To create client thorugh cli: (venv) ak@ak-OptiPlex-Micro-Plus-7010:~/Projects/QIAM/keyclk/keycloak-api-client/keycloak-26.4.1/bin$ ./kcadm.sh create clients -r LorvenAI-realm -s clientId=LorvenAI-app-Bahubali -s enabled=true -s publicClient=false -s protocol=openid-connect -s redirectUris='["*"]' -s webOrigins='["*"]' -s serviceAccountsEnabled=true -s authorizationServicesEnabled=true -s directAccessGrantsEnabled=true -s standardFlowEnabled=true
+
+Created new client with id '5b845187-8def-4580-9020-41dd53df4683'
+
+
