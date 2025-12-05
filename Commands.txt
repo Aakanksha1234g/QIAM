@@ -12,6 +12,7 @@ To see users in keycloak: select username from user_entity;
 
 To see total clients in keycloak : select client_id, description, enabled from client;
 
+
 To get all the roles in the Project Bahubali 
 1. Export the realm with the client roles and groups.
 2. From that json file Copy the client LorvenAI-app array with all the roles and store it with a name "client-roles-template.json"
