@@ -142,3 +142,13 @@ Assign role to user
 
 Admin Console: Users → select user AK → Role Mappings → Client Roles → select fastapi-app-client → add Director.
 Or Admin REST: POST /admin/realms/{realm}/users/{userId}/role-mappings/clients/{clientUuid} with role representation.
+
+
+When a user does login then access token and refresh token are generated. The SSO Session is the session time and it is the refresh token time also.
+When the access token expires, refresh token can be used to get a new access token. But the access token is been given for the remaining session time.
+E.g access token - 5 min, 
+    refresh_token - 10 min
+
+  after 5 min access_token is expired and /refresh_token endpoint is called,
+    new_access token - 5 min, 
+    new_refresh_token - 5 min
